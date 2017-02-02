@@ -29,8 +29,10 @@ public class Main {
         MqttClient mqttClient = new MqttClient(brokerIpAddres, port, clientID, qos);
         mqttClient.connect();
 
-        String subTopic = "pinName/Value";
+         String initializationTopic = "/main/init";
+         String subTopic = "/pin/value";
 
+        mqttClient.subscribe(initializationTopic,qos);
         mqttClient.subscribe(subTopic,qos);
 
         

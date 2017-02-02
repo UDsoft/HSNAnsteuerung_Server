@@ -13,6 +13,7 @@ import com.pi4j.io.gpio.GpioFactory;
 import com.pi4j.io.gpio.Pin;
 import com.pi4j.io.gpio.RaspiPin;
 import com.udsoft.GpioManager.HardwarePWM;
+import hsnansteuerung.TopicDataBase;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
@@ -27,11 +28,14 @@ import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
  * @author sdarwin
  */
 public class MqttClient implements MqttCallback{
+    
+    private final TopicDataBase topiclist = new TopicDataBase();
 
     private final static Logger LOGGER = Logger.getLogger(MqttClient.class.getName());
 
     HSNAnsteuerung hsnAnsteuerung = new HSNAnsteuerung();
 
+    
     MqttAsyncClient mqttClient;
     int qos;
     String ipAddress;
@@ -39,13 +43,29 @@ public class MqttClient implements MqttCallback{
     String clientID;
     MemoryPersistence persistence = new MemoryPersistence();
     
-    public final GpioController gpioCnController  = GpioFactory.getInstance();
+    
+    
+    public final GpioController gpioController  = GpioFactory.getInstance();
+    
+    //Example
+    HardwarePWM hardwarePWM = new HardwarePWM(gpioController,RaspiPin.GPIO_15);
+
+    
+    
 
     public MqttClient(String ipAddress,int port,String clientID,int qos){
         this.ipAddress =  "tcp://"+ipAddress+":";
         this.qos = qos;
         this.port = port;
         this.clientID = clientID;
+    }
+    
+    //This method is called when the pin of the raspberry pi is changes.
+    //This will erase/shutdown all the previous initialized GPIO
+    //2nd. It will recreate and set the GPIO to particular mode 
+    //Hardware or Software  PWM 
+    public void gpioPinInitialization(MqttMessage message){
+        
     }
 
     public boolean isConnected(){
@@ -157,13 +177,31 @@ public class MqttClient implements MqttCallback{
     @Override
     public void connectionLost(Throwable cause) {
 
-        System.out.println("Connection Lost");
+        try {
+            System.out.println("Connection Lost");
+            mqttClient.reconnect();
+        } catch (MqttException ex) {
+            Logger.getLogger(MqttClient.class.getName()).log(Level.SEVERE, null, ex);
+        }
+                
     }
 
+    /**
+     * Once the message is Arrived first thing to do is to check the topic.
+     * if the topic is not initialization topic
+     * @param topic
+     * @param message
+     * @throws Exception 
+     */
     @Override
     public void messageArrived(String topic, MqttMessage message) throws Exception {
         
         LOGGER.log(Level.INFO,message.toString()+"- Message Recieved from topic "+ topic);
+        if(topic.equals(topiclist.INITIALIZATION_TOPIC)){
+            System.out.println("Start initializing the GPIO PIN");
+            LOGGER.log(Level.INFO, "There is changes in Gpio Pin activated by the client");
+            gpioPinInitialization(message);
+        }else if(topic.equals(topiclist.CHECK_PIN_VALUE)){
         Gson gson = new Gson();
         RecieveDataModel data = new RecieveDataModel();
         data = gson.fromJson(message.toString(), RecieveDataModel.class);
@@ -172,12 +210,7 @@ public class MqttClient implements MqttCallback{
         Pin raspPin = RaspiPin.getPinByAddress(pinNumber);
         
         int pwmValue = Integer.parseInt(data.getValue());
-        
-        
-        
-        HardwarePWM outputHardwarePWM = 
-                new HardwarePWM(gpioCnController,raspPin,pwmValue);
-        
+        }
         
 
     }
